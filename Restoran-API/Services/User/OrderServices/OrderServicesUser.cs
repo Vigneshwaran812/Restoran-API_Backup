@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using System.Globalization;
 using Restaurant_Reservation_Management_System_Api.Dto.Auth;
 using EmailService;
+using System.Text;
 
 namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServices
 {
@@ -33,19 +34,12 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
 
         }
       
-        
+        //service to place order
         public async Task<ServiceResponse<GetOrderDtoUser>> AddOrder(string customerIdClaim , AddOrderDtoUser addOrderDtoUser)
         {
             var serviceResponse = new ServiceResponse<GetOrderDtoUser>();
 
             var customerId = customerIdClaim;
-
-
-            //var httpContext = _httpContextAccessor.HttpContext;
-            //var jwtToken = httpContext?.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-
-            //var tokenHandler = new JwtSecurityTokenHandler();
-            //var jwtTokenData = tokenHandler.ReadJwtToken(jwtToken);
 
              
                 if (customerIdClaim == null)
@@ -66,9 +60,12 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
                 _context.Orders.Add(order);
 
                 await _context.SaveChangesAsync();
-
+                
+                //finding the user with id
 			    var applicationUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == customerId);
-			var table = await _context.Tables.FirstOrDefaultAsync(t => t.TableId == order.TableId);
+
+                //getting the table with id
+			    var table = await _context.Tables.FirstOrDefaultAsync(t => t.TableId == order.TableId);
 
 
 
@@ -89,6 +86,7 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
                 }
                 await _context.SaveChangesAsync();
 
+            //creating new GetOrderDto
 
             var getOrderDtoUser = new GetOrderDtoUser()
             {
@@ -96,12 +94,9 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
                 OrderDate = order.OrderDate,
                 CustomerId = order.ApplicationUserId,
                 CustomerName = applicationUser?.Name,
-                TableNumber = table?.TableNumber,
-                
-                    
-                     
-                    TableId = order.TableId ,
-                    OrderItems = addOrderDtoUser.OrderItems ,
+                TableNumber = table?.TableNumber,         
+                TableId = order.TableId ,
+                OrderItems = addOrderDtoUser.OrderItems ,
 
                 };
 
@@ -109,82 +104,31 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
                 serviceResponse.Success = true;
 			    serviceResponse.Message = "Ordered Successfully";
 
-			    var employeeMessage = new Message(new string[] { applicationUser.Email }, "Registration Successfull", "\n\n" +
-						     "Thank you for registering with 'RESTORAN' We are delighted to welcome you to our platform!" + "\n\n" +
-						     "If you have any questions or need assistance, please don't hesitate to reach out to us." + "\n\n" +
-						     "Best regards,\n" +
-						     "Restoran");
+			var orderedTable = await _context.Tables.FirstOrDefaultAsync(t=>t.TableId == addOrderDtoUser.TableId);
+
+			var orderedTableNumber = orderedTable?.TableNumber;
 
 
-			    _emailSender.SendEmail(employeeMessage);
+			var customerName = applicationUser.Name;
 
-			//catch (Exception ex)
-			//{
-			//    serviceResponse.Success = false;
-			//    serviceResponse.Message = "Hi" + ex.Message;
 
-			//}
+			//message to display in email
+			var employeeMessage = new Message(new string[] { applicationUser.Email }, "Booking Successful", $"\n\nDear {customerName},\n\n" +
+							 "Your reservation at 'Restoran' has been successful!\n\n" +
+							 $"Table Number: {orderedTableNumber}\n" +						 
+							 "If you have any questions or need assistance, please don't hesitate to reach out to us." + "\n\n" +
+							 "Best regards,\n" +
+							 "Restoran");
+			//sending email to the registered customer
+
+			_emailSender.SendEmail(employeeMessage);
+
+
 			return serviceResponse;
 
         }
 
-        //public async Task<ServiceResponse<IEnumerable<GetAllOrderDto>>> OrderDetails(string customerIdClaim)
-        //{
-        //    var serviceResponse = new ServiceResponse<IEnumerable<GetAllOrderDto>>();
-
-        //    var orders = await _context.Orders.ToListAsync();
-
-        //    var customerId = customerIdClaim;
-
-        //    var customer = await _userManager.FindByIdAsync(customerId);
-
-
-
-
-        //    if (orders == null)
-        //    {
-        //        serviceResponse.Success = true;
-        //        serviceResponse.Message = "No Orders Found!";
-        //        return serviceResponse;
-
-        //    }
-
-        //    var getOrderDtoList = new List<GetAllOrderDto>();  
-
-        //    foreach( var order in orders)
-        //    {
-        //        var table = _context.Tables.FirstOrDefault(t => t.TableId == order.TableId);
-
-        //        // var foodItemIds = order.OrderItems.Select(oi => oi.FoodItemId);
-
-        //        var getOrderItemDtos = order.OrderItems.Select(oi => new GetOrderItemDto
-        //        {
-        //            FoodItemId = oi.FoodItemId,
-        //            ItemName = oi.FoodItem.ItemName, // Access the FoodItem name directly from the OrderItem's FoodItem property
-        //            Quantity = oi.Quantity,
-        //            // Add other properties as needed...
-        //        }).ToList();
-        //        var getOrderDto = new GetAllOrderDto()
-        //        {
-        //            OrderId = order.OrderId,
-        //            CustomerId = customerId,
-        //            CustomerName = customer?.Name,
-        //            TableId = order.TableId,
-        //            TableNumber = table?.TableNumber,
-        //            OrderDate = order.OrderDate,
-        //            OrderItems = getOrderItemDtos,
-
-        //        };
-        //        getOrderDtoList.Add(getOrderDto);   
-
-        //    }
-        //    serviceResponse.Data = getOrderDtoList;
-        //    serviceResponse.Message = "Fetched All Placed Order Details";
-        //    return serviceResponse;
-
-
-        //}
-
+        //service to get the order details of particular customer
 
         public async Task<ServiceResponse<IEnumerable<GetAllOrderDto>>> OrderDetails(string customerIdClaim)
         {
@@ -318,8 +262,6 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.OrderServic
 			serviceResponse.Message = "All the Orders Of You!";
 			serviceResponse.Success = true;
 			return serviceResponse;
-
-
 
 		}
 

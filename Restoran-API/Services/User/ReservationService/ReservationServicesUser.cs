@@ -1,7 +1,9 @@
 ﻿using AutoMapper;
+using EmailService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Restaurant_Reservation_Management_System_Api.Data;
+using Restaurant_Reservation_Management_System_Api.Dto.Auth;
 using Restaurant_Reservation_Management_System_Api.Dto.User.Reservation;
 using Restaurant_Reservation_Management_System_Api.Dto.User.Table;
 using Restaurant_Reservation_Management_System_Api.Model;
@@ -14,13 +16,17 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 
         private readonly IMapper _mapper;
 
-        public ReservationServicesUser(RestaurantDbContext context , IMapper mapper)
+		private readonly IEmailSender _emailSender;
+
+		public ReservationServicesUser(RestaurantDbContext context , IMapper mapper, IEmailSender emailSender)
         {
             _context = context;
             _mapper = mapper;   
+			_emailSender = emailSender;
 
         }
 
+		//service to add new reservation for table
         public async Task<ServiceResponse<GetReservationDtoUser>> PostReservation(CreateReservationDtoUser createReservationDtoUser)
         {
             var serviceResponse =  new ServiceResponse<GetReservationDtoUser>();
@@ -32,8 +38,7 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 
                 var tableId = findTable.TableId;
 
-               // var reservationDate = createReservationDtoUser.ReservationDate;
-               // DateTime dateOnly = reservationDate.Date;
+              
 
                 if(findTable.IsOccupied == true)
                 {
@@ -42,6 +47,8 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
                     return serviceResponse;
                 }
 
+				//checking whether the number of guest is higher than table capacity
+
                 if(createReservationDtoUser.NumberOfGuests > findTable.Capacity)
                 {
                     serviceResponse.Success = false;
@@ -49,9 +56,12 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
                     return serviceResponse;
                 }
             
+
+				//creating new Reservation
+
                 var newReservation = new Reservation()
                 {
-                    //CustomerId = 2,
+                  
                     TableId = tableId,
                     ReservationDate = createReservationDtoUser.ReservationDate.Date,
                     StartTime = createReservationDtoUser.StartTime,
@@ -70,14 +80,11 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 
               
 
-                //var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerId == newReservation.CustomerId);
-
-               // var customerName = customer?.Name;
+            
 
                 var reservationDto = new GetReservationDtoUser()
                 {
-                  //  CustomerId = newReservation.CustomerId,
-                    //CustomerName = newReservation.Customer.Name,
+                  
                     TableId = newReservation.TableId,
                     TableNumber = newReservation.Table.TableNumber,
                     ReservationDate = newReservation.ReservationDate,
@@ -99,6 +106,8 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
             return serviceResponse;
 
         }
+
+		//service to delete the reservation
 
         public async Task<ServiceResponse<string>> DeleteReservation(int id)
         {
@@ -130,6 +139,8 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 
         }
 
+		//service to reserve table
+
 		public async Task<ServiceResponse<Reservation>> ReserveTable(string customerIdClaim , CreateReservationDtoUser createReservationDtoUser)
 		{
 			var response = new ServiceResponse<Reservation>();
@@ -147,6 +158,8 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 					response.Message = "Table not found.";
 					return response;
 				}
+
+				//checking whether the table is occupied or not
 
 				if (IsTableOccupied(table.TableId, createReservationDtoUser.ReservationDate, createReservationDtoUser.StartTime, createReservationDtoUser.EndTime))
 				{
@@ -169,10 +182,11 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 					StartTime = createReservationDtoUser.StartTime,
 					EndTime = createReservationDtoUser.EndTime,
 					NumberOfGuests = createReservationDtoUser.NumberOfGuests,
-					ApplicationUserId = customerId, // Set the application user ID here (assuming a fixed value for this example)
+					ApplicationUserId = customerId, 
 				};
 
 				_context.Reservations.Add(newReservation);
+				//check whether the table is available for particular date for a particular time slot
 
 				var reservationsForSlot = _context.Reservations
 					.Where(r => r.TableId == table.TableId &&
@@ -191,6 +205,8 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 					response.Message = "No Tables Available For this Slot";
 					return response;
 				}
+
+				
 
 				response.Data = newReservation;
 				response.Success = true;
@@ -259,7 +275,9 @@ namespace Restaurant_Reservation_Management_System_Api.Services.User.Reservation
 							!(r.StartTime >= endTime || r.EndTime <= startTime)) // Check for overlapping reservations
 				.ToList();
 
-			return reservationsForTable.Count > 0; // Table is occupied if there are any matching reservations
+			// Table is occupied if there are any matching reservations
+
+			return reservationsForTable.Count > 0; 
 		}
 
 	}
